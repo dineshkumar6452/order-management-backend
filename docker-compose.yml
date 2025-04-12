@@ -4,13 +4,13 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "5000:5000"
     depends_on:
       - db
     environment:
-      - DB_HOST=db
+      - DB_HOST=order-management-backend-db-1
       - DB_USER=postgres
-      - DB_PASSWORD=yourpassword
+      - DB_PASSWORD=password
       - DB_NAME=order_db
     volumes:
       - .:/app
