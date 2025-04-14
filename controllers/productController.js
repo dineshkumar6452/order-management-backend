@@ -3,6 +3,14 @@ const Product = require("../models/Product");
 // ✅ Create Product
 exports.createProduct = async (req, res) => {
   try {
+
+
+        // // Check for existing barcode
+        // const existingProduct = await Product.findOne({ where: { barcode } });
+        // if (existingProduct) {
+        //   return res.status(400).json({ success: false, message: "Product with this barcode already exists" });
+        // }
+
     const imageUrl = req.file ? `${process.env.LOCALHOST}/uploads/${req.file.filename}` : null;
 
     const product = await Product.create({
@@ -11,6 +19,7 @@ exports.createProduct = async (req, res) => {
       price: req.body.price,
       stock: req.body.stock,
       category: req.body.category,
+      barcode: req.body.barcode,
       imageUrl: imageUrl,
     });
 
@@ -47,6 +56,23 @@ exports.getProductById = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+// ✅ Get Product by Barcode
+exports.getProductByBarcode = async (req, res) => {
+  try {
+    const { barcode } = req.params;
+    const product = await Product.findOne({ where: { barcode } });
+
+    if (!product) {
+      return res.status(200).json({ success: false, message: "Product not found with this barcode" });
+    }
+
+    res.json({ success: true, product });
+  } catch (error) {
+    console.error("❌ Error in getProductByBarcode:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 
 // ✅ Update Product
 exports.updateProduct = async (req, res) => {
@@ -55,6 +81,14 @@ exports.updateProduct = async (req, res) => {
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
+
+    // const { barcode } = req.body;
+    // if (barcode && barcode !== product.barcode) {
+    //   const existing = await Product.findOne({ where: { barcode } });
+    //   if (existing) {
+    //     return res.status(400).json({ success: false, message: "Barcode already exists" });
+    //   }
+    // }
 
     const imageUrl = req.file ? `http://localhost:5000/uploads/${req.file.filename}` : product.imageUrl;
 
@@ -65,6 +99,7 @@ exports.updateProduct = async (req, res) => {
       stock: req.body.stock || product.stock,
       status: req.body.status || product.status,
       category: req.body.category || product.category,
+      barcode: req.body.barcode || product.barcode,
       imageUrl: imageUrl,
     });
 

@@ -33,6 +33,11 @@ const Product = sequelize.define("Product", {
       type: DataTypes.STRING,
       defaultValue: "Available", // Can be 'Pending', 'Shipped', 'Received'
     },
+    barcode: {
+      type: DataTypes.STRING,
+      allowNull: true, // optional, you can change to false if needed
+      unique: true     // optional: ensures each barcode is unique
+    }
 }, {
   timestamps: true, // Automatically manages createdAt & updatedAt
 });
