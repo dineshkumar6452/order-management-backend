@@ -1,4 +1,6 @@
 const Product = require("../models/Product");
+const fs = require("fs");
+const path = require("path");
 
 // ✅ Create Product
 exports.createProduct = async (req, res) => {
@@ -126,3 +128,67 @@ exports.deleteProduct = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+// ✅ Bulk Import Products
+exports.bulkCreateProducts = async (req, res) => {
+  try {
+    const products = req.body.products; // Assuming the request contains an array of product objects
+
+    if (!Array.isArray(products)) {
+      return res.status(400).json({ success: false, message: "Products should be an array" });
+    }
+
+    const newProducts = await Product.bulkCreate(products);
+
+    res.status(201).json({ success: true, products: newProducts });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+
+// ✅ Bulk Exports Products
+exports.exportProducts = async (req, res) => {
+  try {
+    const products = await Product.findAll();
+
+    if (products.length === 0) {
+      return res.status(404).json({ success: false, message: "No products found" });
+    }
+
+    // Format only necessary fields
+    const formattedProducts = products.map(product => ({
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      stock: product.stock,
+      category: product.category,
+      barcode: product.barcode,
+      imageUrl: product.imageUrl
+    }));
+
+    const exportData = { products: formattedProducts };
+
+    const filePath = path.join(__dirname, "../exports/products.json");
+
+    // Ensure directory exists
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+    // Write JSON file
+    fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2));
+
+    // Send file for download
+    res.download(filePath, "products.json", (err) => {
+      if (err) {
+        console.error("❌ Error sending file:", err);
+      } else {
+        fs.unlinkSync(filePath); // Optional cleanup
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Error exporting products:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
