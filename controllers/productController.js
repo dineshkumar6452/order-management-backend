@@ -7,11 +7,11 @@ exports.createProduct = async (req, res) => {
   try {
 
 
-        // // Check for existing barcode
-        // const existingProduct = await Product.findOne({ where: { barcode } });
-        // if (existingProduct) {
-        //   return res.status(400).json({ success: false, message: "Product with this barcode already exists" });
-        // }
+    // // Check for existing barcode
+    // const existingProduct = await Product.findOne({ where: { barcode } });
+    // if (existingProduct) {
+    //   return res.status(400).json({ success: false, message: "Product with this barcode already exists" });
+    // }
 
     const imageUrl = req.file ? `${process.env.LOCALHOST}/uploads/${req.file.filename}` : null;
 
@@ -23,6 +23,9 @@ exports.createProduct = async (req, res) => {
       category: req.body.category,
       barcode: req.body.barcode,
       imageUrl: imageUrl,
+      gst: req.body.gst,
+      hsn: req.body.hsn,
+      printName: req.body.printName,
     });
 
     res.status(201).json({ success: true, product });
@@ -103,6 +106,9 @@ exports.updateProduct = async (req, res) => {
       category: req.body.category || product.category,
       barcode: req.body.barcode || product.barcode,
       imageUrl: imageUrl,
+      gst: req.body.gst || product.gst,
+      hsn: req.body.hsn || product.hsn,
+      printName: req.body.printName || product.printName,
     });
 
     const Updatedproduct = await Product.findByPk(req.params.id);
@@ -164,7 +170,10 @@ exports.exportProducts = async (req, res) => {
       stock: product.stock,
       category: product.category,
       barcode: product.barcode,
-      imageUrl: product.imageUrl
+      imageUrl: product.imageUrl,
+      gst: product.gst,       // New field
+      hsn: product.hsn,       // New field
+      printName: product.printName, // New field
     }));
 
     const exportData = { products: formattedProducts };

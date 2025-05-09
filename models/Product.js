@@ -29,15 +29,28 @@ const Product = sequelize.define("Product", {
     type: DataTypes.STRING, // Stores the uploaded image path
     allowNull: true,
   },
-    status: {
-      type: DataTypes.STRING,
-      defaultValue: "Available", // Can be 'Pending', 'Shipped', 'Received'
-    },
-    barcode: {
-      type: DataTypes.STRING,
-      allowNull: true, // optional, you can change to false if needed
-      unique: true     // optional: ensures each barcode is unique
-    }
+  status: {
+    type: DataTypes.STRING,
+    defaultValue: "Available", // Can be 'Pending', 'Shipped', 'Received'
+  },
+  barcode: {
+    type: DataTypes.STRING,
+    allowNull: true, // optional, you can change to false if needed
+    unique: true     // optional: ensures each barcode is unique
+  },
+  gst: {
+    type: DataTypes.DECIMAL(5, 2), // Stores GST rate as a percentage (e.g., 18.00)
+    allowNull: true,
+  },
+  hsn: {
+    type: DataTypes.STRING, // Stores the HSN code for the product
+    allowNull: true,
+  },
+  printName: {
+    type: DataTypes.STRING, // Stores the print-friendly name for invoices/receipts
+    allowNull: true,
+  }
+
 }, {
   timestamps: true, // Automatically manages createdAt & updatedAt
 });
