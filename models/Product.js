@@ -49,6 +49,25 @@ const Product = sequelize.define("Product", {
   printName: {
     type: DataTypes.STRING, // Stores the print-friendly name for invoices/receipts
     allowNull: true,
+  },rate1: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0,
+  },
+  rate2: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0,
+  },
+  rate3: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0,
+  },
+  rate4: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0,
   }
 
 }, {

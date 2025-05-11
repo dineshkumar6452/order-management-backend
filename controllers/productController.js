@@ -26,6 +26,10 @@ exports.createProduct = async (req, res) => {
       gst: req.body.gst,
       hsn: req.body.hsn,
       printName: req.body.printName,
+      rate1: req.body.rate1,
+      rate2: req.body.rate2,
+      rate3: req.body.rate3,
+      rate4: req.body.rate4,
     });
 
     res.status(201).json({ success: true, product });
@@ -109,6 +113,10 @@ exports.updateProduct = async (req, res) => {
       gst: req.body.gst || product.gst,
       hsn: req.body.hsn || product.hsn,
       printName: req.body.printName || product.printName,
+      rate1: req.body.rate1 ?? product.rate1,
+      rate2: req.body.rate2 ?? product.rate2,
+      rate3: req.body.rate3 ?? product.rate3,
+      rate4: req.body.rate4 ?? product.rate4,
     });
 
     const Updatedproduct = await Product.findByPk(req.params.id);
@@ -174,6 +182,10 @@ exports.exportProducts = async (req, res) => {
       gst: product.gst,       // New field
       hsn: product.hsn,       // New field
       printName: product.printName, // New field
+      rate1: product.rate1,
+      rate2: product.rate2,
+      rate3: product.rate3,
+      rate4: product.rate4,
     }));
 
     const exportData = { products: formattedProducts };
