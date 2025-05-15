@@ -148,6 +148,8 @@ exports.bulkCreateProducts = async (req, res) => {
   try {
     const products = req.body.products; // Assuming the request contains an array of product objects
 
+    console.log(products);
+
     if (!Array.isArray(products)) {
       return res.status(400).json({ success: false, message: "Products should be an array" });
     }
