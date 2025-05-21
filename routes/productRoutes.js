@@ -14,5 +14,6 @@ router.get("/products/barcode/:barcode", productController.getProductByBarcode);
 // Bulk Import Route (POST)
 router.post("/bulk-import", upload.none(), productController.bulkCreateProducts);
 router.get("/bulk-export", productController.exportProducts);
+router.delete("/prices/:id", productController.deletePriceById);
 
 module.exports = router;
