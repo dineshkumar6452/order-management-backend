@@ -8,7 +8,7 @@ router.post("/upload", upload.single("image"), (req, res) => {
       return res.status(400).json({ success: false, message: "No file uploaded" });
     }
 
-    const filePath = `http://localhost:5000/uploads/${req.file.filename}`;
+    const filePath = `${process.env.LOCALHOST/req.file.filename}`;
 
     res.status(200).json({
       success: true,
