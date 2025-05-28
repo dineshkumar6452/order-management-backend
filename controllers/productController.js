@@ -5,6 +5,8 @@ const path = require("path");
 
 // ✅ Create Product with Prices
 exports.createProduct = async (req, res) => {
+  const t = await Product.sequelize.transaction();
+
   try {
     const imageUrl = req.file ? `${process.env.LOCALHOST}/uploads/${req.file.filename}` : null;
 
@@ -17,16 +19,18 @@ exports.createProduct = async (req, res) => {
       gst: req.body.gst,
       hsn: req.body.hsn,
       printName: req.body.printName,
-    });
+    }, { transaction: t });
 
-    // If prices array is provided
     if (Array.isArray(req.body.prices)) {
       const pricesToCreate = req.body.prices.map((price) => ({
         ...price,
         productId: product.id,
       }));
-      await Price.bulkCreate(pricesToCreate);
+      await Price.bulkCreate(pricesToCreate, { transaction: t });
     }
+
+
+    await t.commit();
 
     const productWithPrices = await Product.findByPk(product.id, {
       include: [{ model: Price, as: "Prices" }],
@@ -34,9 +38,12 @@ exports.createProduct = async (req, res) => {
 
     res.status(201).json({ success: true, product: productWithPrices });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    await t.rollback();
+    res.status(500).json({ success: false, error: error.message, details: error.errors || null });
+
   }
 };
+
 
 // ✅ Get All Products
 exports.getAllProducts = async (req, res) => {
@@ -84,10 +91,13 @@ exports.getProductByBarcode = async (req, res) => {
 
 // ✅ Update Product
 exports.updateProduct = async (req, res) => {
+  const t = await Product.sequelize.transaction();
+
   try {
-    // Find product by ID
-    const product = await Product.findByPk(req.params.id);
+    // Find product by ID (within transaction)
+    const product = await Product.findByPk(req.params.id, { transaction: t });
     if (!product) {
+      await t.rollback();
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
@@ -105,7 +115,9 @@ exports.updateProduct = async (req, res) => {
       gst: req.body.gst || product.gst,
       hsn: req.body.hsn || product.hsn,
       printName: req.body.printName || product.printName,
-    });
+    }, { transaction: t });
+
+    console.log("complete product");
 
     // Sync product prices if provided
     if (Array.isArray(req.body.prices)) {
@@ -119,6 +131,7 @@ exports.updateProduct = async (req, res) => {
               id: priceData.id,
               productId: product.id,
             },
+            transaction: t,
           });
 
           if (updatedCount > 0) {
@@ -128,33 +141,39 @@ exports.updateProduct = async (req, res) => {
         }
 
         // Create new price if update did not happen
-        const created = await Price.create({ ...priceData, productId: product.id });
+        const created = await Price.create({ ...priceData, productId: product.id }, { transaction: t });
         validKeys.push(created.id);
       }
 
       // Find existing prices for the product
-      const existingPrices = await Price.findAll({ where: { productId: product.id } });
+      const existingPrices = await Price.findAll({ where: { productId: product.id }, transaction: t });
 
       // Delete prices not present in the new price list
       for (const existing of existingPrices) {
         if (!validKeys.includes(existing.id)) {
-          await existing.destroy();
+          await existing.destroy({ transaction: t });
         }
       }
     }
 
-    // Fetch updated product with prices
+    // Commit transaction after all DB ops succeed
+    await t.commit();
+
+    // Fetch updated product with prices (outside transaction)
     const updatedProduct = await Product.findByPk(req.params.id, {
       include: [{ model: Price, as: "Prices" }],
     });
 
-    // Return success response with updated product info
     res.json({ success: true, message: "Product updated successfully", product: updatedProduct });
+
   } catch (error) {
+    // Rollback if error occurs
+    await t.rollback();
     console.error("❌ Update failed:", error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error.message,details: error.errors || null  });
   }
 };
+
 
 
 // ✅ Delete Product
