@@ -5,6 +5,7 @@ const productRoutes = require("./routes/productRoutes");
 const imageRoutes = require("./routes/imageRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes"); 
+const categoryRoutes = require('./routes/categoryRoutes');
 const cors = require("cors");
 
 const app = express();
@@ -31,6 +32,8 @@ app.use("/api", orderRoutes);
 // Dashboard Routes
 app.use("/api", dashboardRoutes); 
 
+// Category Routes
+app.use('/api/categories', categoryRoutes);
 
 // Sync DB & Start Server
 const PORT = 5000;
