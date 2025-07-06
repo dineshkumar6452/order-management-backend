@@ -22,12 +22,40 @@ exports.createProduct = async (req, res) => {
     }, { transaction: t });
 
     if (Array.isArray(req.body.prices)) {
-      const pricesToCreate = req.body.prices.map((price) => ({
-        ...price,
-        productId: product.id,
-      }));
+      const pricesToCreate = req.body.prices.map((price) => {
+        let specialBarcodeRate = price.specialBarcodeRate;
+        let isSpecialBarcodeRate = price.isSpecialBarcodeRate ?? false;
+
+        // Auto-calculate if not sent and sufficient data is present
+        if (
+          !specialBarcodeRate &&
+          isSpecialBarcodeRate && // Only auto-calculate if user marked it special
+          price.rate1 &&
+          price.rateQty &&
+          price.packingSize
+        ) {
+          const rateQtyNumber = parseFloat(price.rateQty);
+          const rate1 = parseFloat(price.rate1);
+          const packingSize = parseInt(price.packingSize);
+
+          if (!isNaN(rateQtyNumber) && rateQtyNumber > 0 && !isNaN(packingSize)) {
+            specialBarcodeRate = ((rate1 / rateQtyNumber) * packingSize).toFixed(2);
+          }
+        }
+
+
+        return {
+          ...price,
+          productId: product.id,
+          specialBarcodeRate,
+          isSpecialBarcodeRate,
+        };
+
+      });
+
       await Price.bulkCreate(pricesToCreate, { transaction: t });
     }
+
 
 
     await t.commit();
@@ -124,15 +152,39 @@ exports.updateProduct = async (req, res) => {
       const validKeys = [];
 
       for (const priceData of req.body.prices) {
+        // Auto-compute specialBarcodeRate
+        let specialBarcodeRate = priceData.specialBarcodeRate;
+        let isSpecialBarcodeRate = false;
+
+        if (
+          !specialBarcodeRate &&
+          priceData.rate1 &&
+          priceData.rateQty &&
+          priceData.packingSize
+        ) {
+          const rateQtyNumber = parseFloat(priceData.rateQty);
+          const rate1 = parseFloat(priceData.rate1);
+          const packingSize = parseInt(priceData.packingSize);
+
+          if (!isNaN(rateQtyNumber) && rateQtyNumber > 0 && !isNaN(packingSize)) {
+            specialBarcodeRate = ((rate1 / rateQtyNumber) * packingSize).toFixed(2);
+            isSpecialBarcodeRate = true;
+          }
+        }
+
+
         if (priceData.id) {
-          // Try updating existing price by id
-          const [updatedCount] = await Price.update(priceData, {
-            where: {
-              id: priceData.id,
+          // Try updating existing price
+          const created = await Price.create(
+            {
+              ...priceData,
               productId: product.id,
+              specialBarcodeRate,
+              isSpecialBarcodeRate,
             },
-            transaction: t,
-          });
+            { transaction: t }
+          );
+
 
           if (updatedCount > 0) {
             validKeys.push(priceData.id);
@@ -140,10 +192,18 @@ exports.updateProduct = async (req, res) => {
           }
         }
 
-        // Create new price if update did not happen
-        const created = await Price.create({ ...priceData, productId: product.id }, { transaction: t });
+        // Create new price if not updated
+        const created = await Price.create(
+          {
+            ...priceData,
+            productId: product.id,
+            specialBarcodeRate,
+          },
+          { transaction: t }
+        );
         validKeys.push(created.id);
       }
+
 
       // Find existing prices for the product
       const existingPrices = await Price.findAll({ where: { productId: product.id }, transaction: t });
@@ -170,7 +230,7 @@ exports.updateProduct = async (req, res) => {
     // Rollback if error occurs
     await t.rollback();
     console.error("❌ Update failed:", error);
-    res.status(500).json({ success: false, error: error.message,details: error.errors || null  });
+    res.status(500).json({ success: false, error: error.message, details: error.errors || null });
   }
 };
 

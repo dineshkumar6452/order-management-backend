@@ -49,15 +49,31 @@ const Price = sequelize.define("Price", {
     allowNull: true,
     defaultValue: 0,
   },
+
+  // ✅ New fields
+  rateQty: {
+    type: DataTypes.STRING, // e.g., "12 PC"
+    allowNull: true,
+  },
+  packingSize: {
+    type: DataTypes.INTEGER, // number of pcs in the actual pack
+    allowNull: true,
+  },
+  specialBarcodeRate: {
+    type: DataTypes.DECIMAL(10, 2), // auto-calculated if not provided
+    allowNull: true,
+  },
+  isSpecialBarcodeRate: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
 }, {
   timestamps: true,
 });
 
-// 👇 Association back to Product
 Price.associate = (models) => {
   Price.belongsTo(models.Product, { foreignKey: "productId" });
 };
-
-
 
 module.exports = Price;
