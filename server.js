@@ -7,6 +7,8 @@ const imageRoutes = require("./routes/imageRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes"); 
 const categoryRoutes = require('./routes/categoryRoutes');
+const accountsRoutes = require('./routes/accounts');
+const transactionsRoutes = require('./routes/transactions');
 const cors = require("cors");
 
 const app = express();
@@ -45,6 +47,8 @@ app.use("/api", productRoutes);
 app.use("/api", orderRoutes);
 app.use("/api", dashboardRoutes); 
 app.use("/api/categories", categoryRoutes);
+app.use('/api/accounts', accountsRoutes);
+app.use('/api/transactions', transactionsRoutes);
 
 // ✅ Start server after DB sync
 syncDB().then(() => {
