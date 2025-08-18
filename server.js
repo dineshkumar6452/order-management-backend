@@ -10,6 +10,8 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const accountsRoutes = require('./routes/accounts');
 const transactionsRoutes = require('./routes/transactions');
 const todoRoutes = require("./routes/todoRoutes");
+const healthz = require("./controllers/healthz");
+const startHealthzJob = require("./jobs/healthzJob");
 const cors = require("cors");
 
 const app = express();
@@ -51,8 +53,13 @@ app.use("/api/categories", categoryRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/transactions', transactionsRoutes);
 app.use("/api", todoRoutes);
+app.use("/api",healthz);
 
 // ✅ Start server after DB sync
 syncDB().then(() => {
   app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 });
+
+startHealthzJob();
+
+
