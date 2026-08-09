@@ -5,6 +5,7 @@ const Account = require('../models/account');
 const Decimal = require('decimal.js');
 //const { sequelize } = require('../models'); // Make sure this path is correct
 const sequelize = require('../config/database'); 
+const { sendTransactionEmail } = require('../utils/mailer');
 
 // 🔧 Centralized Error Handler
 const handleError = (res, error, status = 500) => {
@@ -51,6 +52,9 @@ router.post('/', async (req, res) => {
         await t.commit();
         console.log(`✅ Transaction committed: ${type} ₹${amount}, new balance: ₹${account.balance}`);
         res.status(201).json(transaction);
+
+        // 📧 Fire-and-forget email notification (does not block/delay the response)
+        sendTransactionEmail({ transaction, account, event: 'created' });
     } catch (error) {
         await t.rollback();
         handleError(res, error);
@@ -187,6 +191,9 @@ router.put('/:id', async (req, res) => {
         await t.commit();
         console.log(`✅ Transaction updated: ${transaction.type} ₹${transaction.amount}, new balance: ₹${account.balance}`);
         res.status(200).json(transaction);
+
+        // 📧 Fire-and-forget email notification
+        sendTransactionEmail({ transaction, account, event: 'updated' });
     } catch (error) {
         await t.rollback();
         handleError(res, error);
@@ -226,6 +233,9 @@ router.delete('/:id', async (req, res) => {
         await t.commit();
         console.log(`✅ Transaction deleted: ${transaction.type} ₹${transaction.amount}, new balance: ₹${account.balance}`);
         res.status(200).json({ message: 'Transaction deleted and account balance updated' });
+
+        // 📧 Fire-and-forget email notification
+        sendTransactionEmail({ transaction, account, event: 'deleted' });
     } catch (error) {
         await t.rollback();
         handleError(res, error);
