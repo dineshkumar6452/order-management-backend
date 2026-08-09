@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Account = require('../models/account');
+const { sendAccountEmail } = require('../utils/mailer');
 
 // 📌 Create a new account
 router.post('/', async (req, res, next) => {
@@ -32,6 +33,9 @@ router.post('/', async (req, res, next) => {
     });
 
     res.status(201).json(newAccount);
+
+    // 📧 Fire-and-forget email notification (does not block/delay the response)
+    sendAccountEmail({ account: newAccount, event: 'created' });
   } catch (error) {
     next(error);
   }
@@ -83,6 +87,9 @@ router.put('/:id', async (req, res, next) => {
 
     await account.save();
     res.status(200).json(account);
+
+    // 📧 Fire-and-forget email notification
+    sendAccountEmail({ account, event: 'updated' });
   } catch (error) {
     next(error);
   }
@@ -98,6 +105,10 @@ router.delete('/:id', async (req, res, next) => {
 
     await account.destroy();
     res.status(200).json({ message: `Account ID ${req.params.id} deleted successfully.` });
+
+    // 📧 Fire-and-forget email notification (account object still holds its
+    // last known values in memory even after destroy())
+    sendAccountEmail({ account, event: 'deleted' });
   } catch (error) {
     next(error);
   }
