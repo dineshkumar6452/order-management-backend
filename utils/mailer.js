@@ -20,6 +20,25 @@ const ICONS = {
 };
 
 /**
+ * Formats any Date/timestamp as IST (Asia/Kolkata), regardless of the
+ * server's own timezone. Always append "IST" so it's unambiguous in the email.
+ */
+function formatIST(date) {
+  if (!date) return "-";
+  return (
+    new Date(date).toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }) + " IST"
+  );
+}
+
+/**
  * Builds a polished HTML email around a set of label/value rows.
  * Inline styles only, for maximum email-client compatibility.
  */
@@ -156,13 +175,7 @@ async function sendTransactionEmail({ transaction, account, event = "created" })
       { label: "Description", value: transaction.description },
       { label: "New Balance", value: `₹${account?.balance ?? "-"}` },
       { label: "Created By", value: transaction.createdBy },
-      { label: "Time", value: new Date(transaction.createdAt || new Date().toLocaleDateString("en-IN", {
-  timeZone: "Asia/Kolkata",
-  weekday: "long",
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-})) },
+      { label: "Time", value: formatIST(transaction.createdAt || Date.now()) },
     ],
   });
 
@@ -194,13 +207,7 @@ async function sendAccountEmail({ account, event = "created" }) {
         label: event === "created" ? "Created By" : "Updated By",
         value: event === "created" ? account.createdBy : account.updatedBy,
       },
-      { label: "Time", value: new Date().toLocaleDateString("en-IN", {
-  timeZone: "Asia/Kolkata",
-  weekday: "long",
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-}) },
+      { label: "Time", value: formatIST(new Date()) },
     ],
   });
 
@@ -208,8 +215,6 @@ async function sendAccountEmail({ account, event = "created" }) {
 }
 
 /**
- * Fire-and-forget daily digest email listing every account and its balance.
- *//**
  * Fire-and-forget daily digest email listing every account and its balance.
  */
 async function sendDailyAccountSummaryEmail({ accounts }) {
@@ -224,10 +229,12 @@ async function sendDailyAccountSummaryEmail({ accounts }) {
     .map((a, i) => {
       const balance = Number(a.balance || 0);
       const balanceColor = balance < 0 ? "#c62828" : "#2e7d32";
+      const lastTxn = a.lastTransactionDate ? formatIST(a.lastTransactionDate) : "No transactions yet";
       return `
         <tr style="${i % 2 === 0 ? "background-color:#fafafa;" : ""}">
           <td style="padding:10px 16px;font-size:13px;color:#111827;border-bottom:1px solid #f0f0f0;">${a.name}</td>
           <td style="padding:10px 16px;font-size:12px;color:#6b7280;border-bottom:1px solid #f0f0f0;">${a.type || "-"}</td>
+          <td style="padding:10px 16px;font-size:11px;color:#6b7280;border-bottom:1px solid #f0f0f0;white-space:nowrap;">${lastTxn}</td>
           <td style="padding:10px 16px;font-size:13px;font-weight:700;color:${balanceColor};text-align:right;border-bottom:1px solid #f0f0f0;">₹${balance.toFixed(2)}</td>
         </tr>`;
     })
@@ -251,21 +258,22 @@ async function sendDailyAccountSummaryEmail({ accounts }) {
               📊 Daily Summary
             </span>
             <h2 style="margin:16px 0 4px 0;font-size:19px;color:#111827;">All Account Balances</h2>
-            <p style="margin:0;font-size:13px;color:#6b7280;">${new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} · ${nonZeroAccounts.length} account${nonZeroAccounts.length === 1 ? "" : "s"} with a balance${accounts.length !== nonZeroAccounts.length ? ` (${accounts.length - nonZeroAccounts.length} zero-balance hidden)` : ""}</p>
+            <p style="margin:0;font-size:13px;color:#6b7280;">${formatIST(new Date())} · ${nonZeroAccounts.length} account${nonZeroAccounts.length === 1 ? "" : "s"} with a balance${accounts.length !== nonZeroAccounts.length ? ` (${accounts.length - nonZeroAccounts.length} zero-balance hidden)` : ""}</p>
           </div>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">
             <tr>
               <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Account</td>
               <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Type</td>
+              <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Last Transaction</td>
               <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;text-align:right;">Balance</td>
             </tr>
             ${
               nonZeroAccounts.length > 0
                 ? rowsHtml
-                : `<tr><td colspan="3" style="padding:24px 16px;text-align:center;font-size:13px;color:#9ca3af;">All accounts are at zero balance 🎉</td></tr>`
+                : `<tr><td colspan="4" style="padding:24px 16px;text-align:center;font-size:13px;color:#9ca3af;">All accounts are at zero balance 🎉</td></tr>`
             }
             <tr>
-              <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#111827;border-top:2px solid #e5e7eb;" colspan="2">Total</td>
+              <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#111827;border-top:2px solid #e5e7eb;" colspan="3">Total</td>
               <td style="padding:14px 16px;font-size:15px;font-weight:800;color:${totalColor};text-align:right;border-top:2px solid #e5e7eb;">₹${total.toFixed(2)}</td>
             </tr>
           </table>
