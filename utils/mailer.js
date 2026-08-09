@@ -95,63 +95,39 @@ function buildEmailHtml({ heading, badgeText, badgeKey, rows }) {
  * Core sender — calls Brevo's Transactional Email API (HTTPS).
  * Never throws — logs and swallows errors so it can't break the request flow.
  */
-async function sendEmail({ subject, htmlContent, logPrefix = "mailer" }) {
-  try {
-    const apiKey = process.env.BREVO_API_KEY;
-    console.log(`📨 [${logPrefix}] BREVO_API_KEY set: ${!!apiKey}`);
-    if (!apiKey) {
-      console.warn(`⚠️ [${logPrefix}] BREVO_API_KEY not set. Skipping email.`);
-      return false;
-    }
+async function sendTransactionEmail({ transaction, account, event = "created" }) {
+  console.log(
+    `📨 [mailer] sendTransactionEmail called. event=${event}, transactionId=${transaction?.id}, accountId=${transaction?.accountId}`
+  );
 
-    const to = process.env.TRANSACTION_ALERT_EMAIL;
-    console.log(`📨 [${logPrefix}] TRANSACTION_ALERT_EMAIL set: ${!!to}${to ? ` (to=${to})` : ""}`);
-    if (!to) {
-      console.warn(`⚠️ [${logPrefix}] TRANSACTION_ALERT_EMAIL not set. Skipping email.`);
-      return false;
-    }
+  const subject = `[Order Mgmt] Transaction ${event}: ${transaction.type.toUpperCase()} ₹${transaction.amount}`;
 
-    const fromEmail = process.env.BREVO_SENDER_EMAIL;
-    if (!fromEmail) {
-      console.warn(`⚠️ [${logPrefix}] BREVO_SENDER_EMAIL not set. Skipping email.`);
-      return false;
-    }
+  const rows = [
+    { label: "Account", value: account?.name ?? transaction.accountId },
+    { label: "Type", value: transaction.type.toUpperCase() },
+    { label: "Amount", value: `<b>₹${transaction.amount}</b>` },
+    { label: "Description", value: transaction.description },
+    { label: "New Balance", value: `₹${account?.balance ?? "-"}` },
+    { label: "Created By", value: transaction.createdBy },
+    { label: "Created At", value: formatIST(transaction.createdAt) },
+  ];
 
-    const toList = to.split(",").map((addr) => ({ email: addr.trim() }));
-
-    console.log(`📨 [${logPrefix}] Calling Brevo API -> to=${to}, subject="${subject}"`);
-
-    const response = await axios.post(
-      BREVO_API_URL,
-      {
-        sender: { name: "Order Management", email: fromEmail },
-        to: toList,
-        subject,
-        htmlContent,
-      },
-      {
-        headers: {
-          "api-key": apiKey,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        timeout: 10000,
-      }
+  // On updates, also show who last updated it and when
+  if (event === "updated") {
+    rows.push(
+      { label: "Updated By", value: transaction.updatedBy },
+      { label: "Updated At", value: formatIST(transaction.updatedAt || Date.now()) }
     );
-
-    console.log(
-      `📧 [${logPrefix}] Email sent via Brevo. status=${response.status}, messageId=${response.data?.messageId}`
-    );
-    return true;
-  } catch (error) {
-    console.error(`❌ [${logPrefix}] Failed to send email via Brevo.`);
-    console.error(`❌ [${logPrefix}] message:`, error.message);
-    if (error.response) {
-      console.error(`❌ [${logPrefix}] status:`, error.response.status);
-      console.error(`❌ [${logPrefix}] data:`, JSON.stringify(error.response.data));
-    }
-    return false;
   }
+
+  const htmlContent = buildEmailHtml({
+    heading: `Transaction ${event}`,
+    badgeText: `${transaction.type} · ${event}`,
+    badgeKey: transaction.type === "credit" ? "credit" : "debit",
+    rows,
+  });
+
+  await sendEmail({ subject, htmlContent, logPrefix: "mailer:transaction" });
 }
 
 /**
