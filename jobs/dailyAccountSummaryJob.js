@@ -3,9 +3,9 @@ const Account = require("../models/account");
 const { sendDailyAccountSummaryEmail } = require("../utils/mailer");
 
 function startDailyAccountSummaryJob() {
-  // TEMP: every 2 minutes for testing. Change back to "0 11 * * *" for the real 11 AM IST daily run.
+  // Runs every day at 11:00 AM IST (Asia/Kolkata)
   cron.schedule(
-    "*/2 * * * *",
+    "0 11 * * *",
     async () => {
       console.log(`[CRON] Daily account summary job triggered at ${new Date().toISOString()}`);
       try {
@@ -18,7 +18,7 @@ function startDailyAccountSummaryJob() {
     { timezone: "Asia/Kolkata" }
   );
 
-  console.log("🕚 Daily account summary job scheduled: every 2 minutes (TEMP TESTING MODE)");
+  console.log("🕚 Daily account summary job scheduled for 11:00 AM IST");
 }
 
 module.exports = startDailyAccountSummaryJob;
