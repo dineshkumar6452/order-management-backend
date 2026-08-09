@@ -156,9 +156,15 @@ async function sendTransactionEmail({ transaction, account, event = "created" })
       { label: "Description", value: transaction.description },
       { label: "New Balance", value: `₹${account?.balance ?? "-"}` },
       { label: "Created By", value: transaction.createdBy },
-      { label: "Time", value: new Date(transaction.createdAt || Date.now()).toLocaleString() },
+      { label: "Time", value: new Date(transaction.createdAt || new Date(transaction.createdAt || Date.now()).toLocaleString("en-IN", {
+  timeZone: "Asia/Kolkata",
+  dateStyle: "medium",
+  timeStyle: "medium",
+}) },
     ],
   });
+
+  
 
   await sendEmail({ subject, htmlContent, logPrefix: "mailer:transaction" });
 }
@@ -188,7 +194,11 @@ async function sendAccountEmail({ account, event = "created" }) {
         label: event === "created" ? "Created By" : "Updated By",
         value: event === "created" ? account.createdBy : account.updatedBy,
       },
-      { label: "Time", value: new Date().toLocaleString() },
+      { label: "Time", value: new Date(transaction.createdAt || Date.now()).toLocaleString("en-IN", {
+  timeZone: "Asia/Kolkata",
+  dateStyle: "medium",
+  timeStyle: "medium",
+}) },
     ],
   });
 
