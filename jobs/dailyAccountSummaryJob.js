@@ -12,11 +12,13 @@ function startDailyAccountSummaryJob() {
       try {
         const accounts = await Account.findAll({ order: [["name", "ASC"]] });
 
-        // Get the most recent transaction date per account in one query
+        // Get the most recent transaction UPDATE time per account in one query
+        // (updatedAt reflects create, edit, or any later modification — a truer
+        // "last activity" signal than createdAt alone)
         const lastTxnRows = await Transaction.findAll({
           attributes: [
             "accountId",
-            [Transaction.sequelize.fn("MAX", Transaction.sequelize.col("createdAt")), "lastTransactionDate"],
+            [Transaction.sequelize.fn("MAX", Transaction.sequelize.col("updatedAt")), "lastTransactionDate"],
           ],
           group: ["accountId"],
           raw: true,

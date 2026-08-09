@@ -233,7 +233,6 @@ async function sendDailyAccountSummaryEmail({ accounts }) {
       return `
         <tr style="${i % 2 === 0 ? "background-color:#fafafa;" : ""}">
           <td style="padding:10px 16px;font-size:13px;color:#111827;border-bottom:1px solid #f0f0f0;">${a.name}</td>
-          <td style="padding:10px 16px;font-size:12px;color:#6b7280;border-bottom:1px solid #f0f0f0;">${a.type || "-"}</td>
           <td style="padding:10px 16px;font-size:11px;color:#6b7280;border-bottom:1px solid #f0f0f0;white-space:nowrap;">${lastTxn}</td>
           <td style="padding:10px 16px;font-size:13px;font-weight:700;color:${balanceColor};text-align:right;border-bottom:1px solid #f0f0f0;">₹${balance.toFixed(2)}</td>
         </tr>`;
@@ -263,17 +262,16 @@ async function sendDailyAccountSummaryEmail({ accounts }) {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">
             <tr>
               <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Account</td>
-              <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Type</td>
               <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Last Transaction</td>
               <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;text-align:right;">Balance</td>
             </tr>
             ${
               nonZeroAccounts.length > 0
                 ? rowsHtml
-                : `<tr><td colspan="4" style="padding:24px 16px;text-align:center;font-size:13px;color:#9ca3af;">All accounts are at zero balance 🎉</td></tr>`
+                : `<tr><td colspan="3" style="padding:24px 16px;text-align:center;font-size:13px;color:#9ca3af;">All accounts are at zero balance 🎉</td></tr>`
             }
             <tr>
-              <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#111827;border-top:2px solid #e5e7eb;" colspan="3">Total</td>
+              <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#111827;border-top:2px solid #e5e7eb;" colspan="2">Total</td>
               <td style="padding:14px 16px;font-size:15px;font-weight:800;color:${totalColor};text-align:right;border-top:2px solid #e5e7eb;">₹${total.toFixed(2)}</td>
             </tr>
           </table>
