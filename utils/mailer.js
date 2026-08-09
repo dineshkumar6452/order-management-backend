@@ -39,6 +39,37 @@ function formatIST(date) {
 }
 
 /**
+ * Returns a date as a YYYY-MM-DD string in IST, ignoring time-of-day —
+ * used so ageing is calculated by calendar day, not by exact hours elapsed.
+ */
+function getISTDateString(date) {
+  return new Date(date).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+/**
+ * Days since lastDate, counted inclusively by IST calendar date
+ * (e.g. a transaction on Aug 1, checked on Aug 9, is "9 days" old).
+ * Returns null if lastDate is missing.
+ */
+function calculateAgeingDays(lastDate) {
+  if (!lastDate) return null;
+  const lastStr = getISTDateString(lastDate);
+  const todayStr = getISTDateString(new Date());
+  const diffMs = new Date(`${todayStr}T00:00:00Z`) - new Date(`${lastStr}T00:00:00Z`);
+  const diffDays = Math.round(diffMs / 86400000);
+  return diffDays + 1;
+}
+
+/**
+ * Color for the ageing badge: fresher = green, older = amber/red.
+ */
+function ageingColor(days) {
+  if (days === null) return { bg: "#f3f4f6", text: "#6b7280" };
+  if (days <= 15) return { bg: "#e8f5e9", text: "#2e7d32" };
+  if (days <= 30) return { bg: "#fff8e1", text: "#b45309" };
+  return { bg: "#fdecea", text: "#c62828" };
+}
+/**
  * Builds a polished HTML email around a set of label/value rows.
  * Inline styles only, for maximum email-client compatibility.
  */
@@ -95,6 +126,68 @@ function buildEmailHtml({ heading, badgeText, badgeKey, rows }) {
  * Core sender — calls Brevo's Transactional Email API (HTTPS).
  * Never throws — logs and swallows errors so it can't break the request flow.
  */
+async function sendEmail({ subject, htmlContent, logPrefix = "mailer" }) {
+  try {
+    const apiKey = process.env.BREVO_API_KEY;
+    console.log(`📨 [${logPrefix}] BREVO_API_KEY set: ${!!apiKey}`);
+    if (!apiKey) {
+      console.warn(`⚠️ [${logPrefix}] BREVO_API_KEY not set. Skipping email.`);
+      return false;
+    }
+
+    const to = process.env.TRANSACTION_ALERT_EMAIL;
+    console.log(`📨 [${logPrefix}] TRANSACTION_ALERT_EMAIL set: ${!!to}${to ? ` (to=${to})` : ""}`);
+    if (!to) {
+      console.warn(`⚠️ [${logPrefix}] TRANSACTION_ALERT_EMAIL not set. Skipping email.`);
+      return false;
+    }
+
+    const fromEmail = process.env.BREVO_SENDER_EMAIL;
+    if (!fromEmail) {
+      console.warn(`⚠️ [${logPrefix}] BREVO_SENDER_EMAIL not set. Skipping email.`);
+      return false;
+    }
+
+    const toList = to.split(",").map((addr) => ({ email: addr.trim() }));
+
+    console.log(`📨 [${logPrefix}] Calling Brevo API -> to=${to}, subject="${subject}"`);
+
+    const response = await axios.post(
+      BREVO_API_URL,
+      {
+        sender: { name: "Order Management", email: fromEmail },
+        to: toList,
+        subject,
+        htmlContent,
+      },
+      {
+        headers: {
+          "api-key": apiKey,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        timeout: 10000,
+      }
+    );
+
+    console.log(
+      `📧 [${logPrefix}] Email sent via Brevo. status=${response.status}, messageId=${response.data?.messageId}`
+    );
+    return true;
+  } catch (error) {
+    console.error(`❌ [${logPrefix}] Failed to send email via Brevo.`);
+    console.error(`❌ [${logPrefix}] message:`, error.message);
+    if (error.response) {
+      console.error(`❌ [${logPrefix}] status:`, error.response.status);
+      console.error(`❌ [${logPrefix}] data:`, JSON.stringify(error.response.data));
+    }
+    return false;
+  }
+}
+
+/**
+ * Fire-and-forget email notification for a transaction (create/update/delete).
+ */
 async function sendTransactionEmail({ transaction, account, event = "created" }) {
   console.log(
     `📨 [mailer] sendTransactionEmail called. event=${event}, transactionId=${transaction?.id}, accountId=${transaction?.accountId}`
@@ -125,34 +218,6 @@ async function sendTransactionEmail({ transaction, account, event = "created" })
     badgeText: `${transaction.type} · ${event}`,
     badgeKey: transaction.type === "credit" ? "credit" : "debit",
     rows,
-  });
-
-  await sendEmail({ subject, htmlContent, logPrefix: "mailer:transaction" });
-}
-
-/**
- * Fire-and-forget email notification for a transaction (create/update/delete).
- */
-async function sendTransactionEmail({ transaction, account, event = "created" }) {
-  console.log(
-    `📨 [mailer] sendTransactionEmail called. event=${event}, transactionId=${transaction?.id}, accountId=${transaction?.accountId}`
-  );
-
-  const subject = `[Order Mgmt] Transaction ${event}: ${transaction.type.toUpperCase()} ₹${transaction.amount}`;
-
-  const htmlContent = buildEmailHtml({
-    heading: `Transaction ${event}`,
-    badgeText: `${transaction.type} · ${event}`,
-    badgeKey: transaction.type === "credit" ? "credit" : "debit",
-    rows: [
-      { label: "Account", value: account?.name ?? transaction.accountId },
-      { label: "Type", value: transaction.type.toUpperCase() },
-      { label: "Amount", value: `<b>₹${transaction.amount}</b>` },
-      { label: "Description", value: transaction.description },
-      { label: "New Balance", value: `₹${account?.balance ?? "-"}` },
-      { label: "Created By", value: transaction.createdBy },
-      { label: "Time", value: formatIST(transaction.createdAt || Date.now()) },
-    ],
   });
 
   await sendEmail({ subject, htmlContent, logPrefix: "mailer:transaction" });
@@ -206,10 +271,17 @@ async function sendDailyAccountSummaryEmail({ accounts }) {
       const balance = Number(a.balance || 0);
       const balanceColor = balance < 0 ? "#c62828" : "#2e7d32";
       const lastTxn = a.lastTransactionDate ? formatIST(a.lastTransactionDate) : "No transactions yet";
+      const ageingDays = calculateAgeingDays(a.lastTransactionDate);
+      const ageingPalette = ageingColor(ageingDays);
+      const ageingBadge =
+        ageingDays === null
+          ? `<span style="color:#9ca3af;">-</span>`
+          : `<span style="display:inline-block;background-color:${ageingPalette.bg};color:${ageingPalette.text};font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;">${ageingDays} day${ageingDays === 1 ? "" : "s"}</span>`;
       return `
         <tr style="${i % 2 === 0 ? "background-color:#fafafa;" : ""}">
           <td style="padding:10px 16px;font-size:13px;color:#111827;border-bottom:1px solid #f0f0f0;">${a.name}</td>
           <td style="padding:10px 16px;font-size:11px;color:#6b7280;border-bottom:1px solid #f0f0f0;white-space:nowrap;">${lastTxn}</td>
+          <td style="padding:10px 16px;border-bottom:1px solid #f0f0f0;white-space:nowrap;">${ageingBadge}</td>
           <td style="padding:10px 16px;font-size:13px;font-weight:700;color:${balanceColor};text-align:right;border-bottom:1px solid #f0f0f0;">₹${balance.toFixed(2)}</td>
         </tr>`;
     })
@@ -239,15 +311,16 @@ async function sendDailyAccountSummaryEmail({ accounts }) {
             <tr>
               <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Account</td>
               <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Last Transaction</td>
+              <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Ageing</td>
               <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;text-align:right;">Balance</td>
             </tr>
             ${
               nonZeroAccounts.length > 0
                 ? rowsHtml
-                : `<tr><td colspan="3" style="padding:24px 16px;text-align:center;font-size:13px;color:#9ca3af;">All accounts are at zero balance 🎉</td></tr>`
+                : `<tr><td colspan="4" style="padding:24px 16px;text-align:center;font-size:13px;color:#9ca3af;">All accounts are at zero balance 🎉</td></tr>`
             }
             <tr>
-              <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#111827;border-top:2px solid #e5e7eb;" colspan="2">Total</td>
+              <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#111827;border-top:2px solid #e5e7eb;" colspan="3">Total</td>
               <td style="padding:14px 16px;font-size:15px;font-weight:800;color:${totalColor};text-align:right;border-top:2px solid #e5e7eb;">₹${total.toFixed(2)}</td>
             </tr>
           </table>

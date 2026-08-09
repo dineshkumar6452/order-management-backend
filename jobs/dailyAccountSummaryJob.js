@@ -6,7 +6,7 @@ const { sendDailyAccountSummaryEmail } = require("../utils/mailer");
 function startDailyAccountSummaryJob() {
   // TEMP: every 2 minutes for testing. Change back to "0 11 * * *" for the real 11 AM IST daily run.
   cron.schedule(
-    "0 11 * * *",
+    "*/2 * * * *",
     async () => {
       console.log(`[CRON] Daily account summary job triggered at ${new Date().toISOString()}`);
       try {
