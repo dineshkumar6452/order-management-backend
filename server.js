@@ -12,6 +12,7 @@ const transactionsRoutes = require('./routes/transactions');
 const todoRoutes = require("./routes/todoRoutes");
 const healthz = require("./controllers/healthz");
 const startHealthzJob = require("./jobs/healthzJob");
+const startDailyAccountSummaryJob = require("./jobs/dailyAccountSummaryJob");
 const cors = require("cors");
 
 const app = express();
@@ -59,7 +60,7 @@ app.use("/api",healthz);
 syncDB().then(() => {
   app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 });
-
+startDailyAccountSummaryJob();
 startHealthzJob();
 
 

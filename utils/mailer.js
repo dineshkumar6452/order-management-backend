@@ -195,4 +195,75 @@ async function sendAccountEmail({ account, event = "created" }) {
   await sendEmail({ subject, htmlContent, logPrefix: `mailer:account:${event}` });
 }
 
-module.exports = { sendTransactionEmail, sendAccountEmail };
+/**
+ * Fire-and-forget daily digest email listing every account and its balance.
+ */
+async function sendDailyAccountSummaryEmail({ accounts }) {
+  console.log(`📨 [mailer] sendDailyAccountSummaryEmail called. accountCount=${accounts?.length}`);
+
+  const total = accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
+
+  const rowsHtml = accounts
+    .map((a, i) => {
+      const balance = Number(a.balance || 0);
+      const balanceColor = balance < 0 ? "#c62828" : "#2e7d32";
+      return `
+        <tr style="${i % 2 === 0 ? "background-color:#fafafa;" : ""}">
+          <td style="padding:10px 16px;font-size:13px;color:#111827;border-bottom:1px solid #f0f0f0;">${a.name}</td>
+          <td style="padding:10px 16px;font-size:12px;color:#6b7280;border-bottom:1px solid #f0f0f0;">${a.type || "-"}</td>
+          <td style="padding:10px 16px;font-size:13px;font-weight:700;color:${balanceColor};text-align:right;border-bottom:1px solid #f0f0f0;">₹${balance.toFixed(2)}</td>
+        </tr>`;
+    })
+    .join("");
+
+  const totalColor = total < 0 ? "#c62828" : "#2e7d32";
+
+  const htmlContent = `
+  <div style="margin:0;padding:32px 16px;background-color:#f3f4f6;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;">
+      <tr>
+        <td style="padding:0 0 20px 0;text-align:center;">
+          <span style="font-size:20px;font-weight:700;color:#111827;letter-spacing:-0.3px;">📦 Order Management</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="background-color:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          <div style="height:5px;background-color:#3b82f6;"></div>
+          <div style="padding:28px 24px 12px 24px;">
+            <span style="display:inline-block;background-color:#e0edff;color:#1d4ed8;font-size:12px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;padding:6px 12px;border-radius:999px;">
+              📊 Daily Summary
+            </span>
+            <h2 style="margin:16px 0 4px 0;font-size:19px;color:#111827;">All Account Balances</h2>
+            <p style="margin:0;font-size:13px;color:#6b7280;">${new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} · ${accounts.length} accounts</p>
+          </div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">
+            <tr>
+              <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Account</td>
+              <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Type</td>
+              <td style="padding:8px 16px;font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;text-align:right;">Balance</td>
+            </tr>
+            ${rowsHtml}
+            <tr>
+              <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#111827;border-top:2px solid #e5e7eb;" colspan="2">Total</td>
+              <td style="padding:14px 16px;font-size:15px;font-weight:800;color:${totalColor};text-align:right;border-top:2px solid #e5e7eb;">₹${total.toFixed(2)}</td>
+            </tr>
+          </table>
+          <div style="padding:18px 24px;background-color:#fafafa;border-top:1px solid #f0f0f0;">
+            <p style="margin:0;font-size:12px;color:#9ca3af;">Automated daily digest from your Order Management system.</p>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:20px 0 0 0;text-align:center;">
+          <p style="margin:0;font-size:11px;color:#b0b3ba;">This is a POC alert email — do not reply.</p>
+        </td>
+      </tr>
+    </table>
+  </div>`;
+
+  const subject = `[Order Mgmt] Daily Account Summary — ${accounts.length} accounts, total ₹${total.toFixed(2)}`;
+
+  await sendEmail({ subject, htmlContent, logPrefix: "mailer:daily-summary" });
+}
+
+module.exports = { sendTransactionEmail, sendAccountEmail, sendDailyAccountSummaryEmail };
