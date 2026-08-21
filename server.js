@@ -10,6 +10,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const accountsRoutes = require('./routes/accounts');
 const transactionsRoutes = require('./routes/transactions');
 const todoRoutes = require("./routes/todoRoutes");
+const invoiceRoutes = require("./routes/invoiceRoutes");
 const healthz = require("./controllers/healthz");
 const startHealthzJob = require("./jobs/healthzJob");
 const startDailyAccountSummaryJob = require("./jobs/dailyAccountSummaryJob");
@@ -54,6 +55,7 @@ app.use("/api/categories", categoryRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/transactions', transactionsRoutes);
 app.use("/api", todoRoutes);
+app.use("/api", invoiceRoutes);
 app.use("/api",healthz);
 
 // ✅ Start server after DB sync

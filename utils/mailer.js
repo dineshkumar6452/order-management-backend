@@ -342,4 +342,89 @@ async function sendDailyAccountSummaryEmail({ accounts }) {
   await sendEmail({ subject, htmlContent, logPrefix: "mailer:daily-summary" });
 }
 
-module.exports = { sendTransactionEmail, sendAccountEmail, sendDailyAccountSummaryEmail };
+/**
+ * Sends an email with a PDF attached via Brevo's Transactional Email API.
+ * Unlike the other senders here, the recipient is dynamic (per-request),
+ * not a fixed alert address from env vars.
+ *
+ * @param {Object} opts
+ * @param {string} opts.to - Comma-separated recipient email address(es).
+ * @param {string} opts.subject
+ * @param {string} opts.htmlContent
+ * @param {Buffer} opts.pdfBuffer
+ * @param {string} opts.pdfFileName
+ * @returns {Promise<{success:boolean, messageId?:string, error?:string}>}
+ */
+async function sendInvoiceEmail({ to, subject, htmlContent, pdfBuffer, pdfFileName }) {
+  try {
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) {
+      console.warn(`⚠️ [mailer:invoice] BREVO_API_KEY not set. Skipping email.`);
+      return { success: false, error: "Email service not configured (missing BREVO_API_KEY)." };
+    }
+
+    const fromEmail = process.env.BREVO_SENDER_EMAIL;
+    if (!fromEmail) {
+      console.warn(`⚠️ [mailer:invoice] BREVO_SENDER_EMAIL not set. Skipping email.`);
+      return { success: false, error: "Email service not configured (missing BREVO_SENDER_EMAIL)." };
+    }
+
+    if (!to || typeof to !== "string") {
+      return { success: false, error: "Recipient email (to) is required." };
+    }
+
+    const toList = to
+      .split(",")
+      .map((addr) => addr.trim())
+      .filter(Boolean)
+      .map((email) => ({ email }));
+
+    if (toList.length === 0) {
+      return { success: false, error: "No valid recipient email addresses were provided." };
+    }
+
+    console.log(`📨 [mailer:invoice] Emailing invoice -> to=${to}, subject="${subject}"`);
+
+    const response = await axios.post(
+      BREVO_API_URL,
+      {
+        sender: { name: "Invoice", email: fromEmail },
+        to: toList,
+        subject,
+        htmlContent,
+        attachment: [
+          {
+            content: pdfBuffer.toString("base64"),
+            name: pdfFileName,
+          },
+        ],
+      },
+      {
+        headers: {
+          "api-key": apiKey,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        timeout: 15000,
+      }
+    );
+
+    console.log(
+      `📧 [mailer:invoice] Invoice email sent via Brevo. status=${response.status}, messageId=${response.data?.messageId}`
+    );
+    return { success: true, messageId: response.data?.messageId };
+  } catch (error) {
+    console.error(`❌ [mailer:invoice] Failed to send invoice email via Brevo.`);
+    console.error(`❌ [mailer:invoice] message:`, error.message);
+    if (error.response) {
+      console.error(`❌ [mailer:invoice] status:`, error.response.status);
+      console.error(`❌ [mailer:invoice] data:`, JSON.stringify(error.response.data));
+    }
+    return {
+      success: false,
+      error: error.response?.data?.message || error.message || "Unknown error sending email.",
+    };
+  }
+}
+
+module.exports = { sendTransactionEmail, sendAccountEmail, sendDailyAccountSummaryEmail, sendInvoiceEmail };
