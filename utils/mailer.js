@@ -349,13 +349,14 @@ async function sendDailyAccountSummaryEmail({ accounts }) {
  *
  * @param {Object} opts
  * @param {string} opts.to - Comma-separated recipient email address(es).
+ * @param {string} [opts.bcc] - Comma-separated BCC address(es) (e.g. admin).
  * @param {string} opts.subject
  * @param {string} opts.htmlContent
  * @param {Buffer} opts.pdfBuffer
  * @param {string} opts.pdfFileName
  * @returns {Promise<{success:boolean, messageId?:string, error?:string}>}
  */
-async function sendInvoiceEmail({ to, subject, htmlContent, pdfBuffer, pdfFileName }) {
+async function sendInvoiceEmail({ to, bcc, subject, htmlContent, pdfBuffer, pdfFileName }) {
   try {
     const apiKey = process.env.BREVO_API_KEY;
     if (!apiKey) {
@@ -383,31 +384,42 @@ async function sendInvoiceEmail({ to, subject, htmlContent, pdfBuffer, pdfFileNa
       return { success: false, error: "No valid recipient email addresses were provided." };
     }
 
-    console.log(`📨 [mailer:invoice] Emailing invoice -> to=${to}, subject="${subject}"`);
+    const bccList = bcc
+      ? bcc
+          .split(",")
+          .map((addr) => addr.trim())
+          .filter(Boolean)
+          .map((email) => ({ email }))
+      : [];
 
-    const response = await axios.post(
-      BREVO_API_URL,
-      {
-        sender: { name: "Invoice", email: fromEmail },
-        to: toList,
-        subject,
-        htmlContent,
-        attachment: [
-          {
-            content: pdfBuffer.toString("base64"),
-            name: pdfFileName,
-          },
-        ],
-      },
-      {
-        headers: {
-          "api-key": apiKey,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        timeout: 15000,
-      }
+    console.log(
+      `📨 [mailer:invoice] Emailing invoice -> to=${to}${bccList.length ? `, bcc=${bcc}` : ""}, subject="${subject}"`
     );
+
+    const payload = {
+      sender: { name: "Invoice", email: fromEmail },
+      to: toList,
+      subject,
+      htmlContent,
+      attachment: [
+        {
+          content: pdfBuffer.toString("base64"),
+          name: pdfFileName,
+        },
+      ],
+    };
+    if (bccList.length > 0) {
+      payload.bcc = bccList;
+    }
+
+    const response = await axios.post(BREVO_API_URL, payload, {
+      headers: {
+        "api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      timeout: 15000,
+    });
 
     console.log(
       `📧 [mailer:invoice] Invoice email sent via Brevo. status=${response.status}, messageId=${response.data?.messageId}`

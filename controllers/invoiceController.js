@@ -1,13 +1,26 @@
 const { buildInvoicePdfBuffer } = require("../utils/invoicePdf");
 const { sendInvoiceEmail } = require("../utils/mailer");
 
+// Admin always gets a copy of every invoice - as BCC when a customer email
+// is sent, or as the sole recipient when triggered from a print action
+// (which has no customer email). Overridable via env var if ever needed.
+const ADMIN_EMAIL = process.env.ADMIN_ALERT_EMAIL || "dineshkumar6452@gmail.com";
+
+const SOURCE_LABELS = {
+  "print-110mm": "🖨️ Printed Invoice (110mm)",
+  "print-80mm": "🖨️ Printed Invoice (80mm Thermal)",
+  email: "📧 Emailed Invoice",
+};
+
 /**
  * POST /api/invoices/email
  *
  * Expected JSON body:
  * {
- *   "to": "customer@example.com",       // required, comma-separated ok
+ *   "to": "customer@example.com",       // optional - omit for an admin-only
+ *                                       // notification (e.g. after a print action)
  *   "invoiceName": "John Doe",          // optional
+ *   "source": "print-110mm",            // optional - "print-110mm" | "print-80mm" | "email"
  *   "items": [                          // required, non-empty array
  *     { "name": "Product A", "price": 50.0, "quantity": 2, "unitTotal": 100.0 },
  *     ...
@@ -16,18 +29,17 @@ const { sendInvoiceEmail } = require("../utils/mailer");
  * }
  *
  * Builds a PDF invoice from the JSON and emails it (via Brevo) with the
- * PDF attached. Responds with { success, message } either way.
+ * PDF attached.
+ *   - If "to" is provided: emails the customer and BCCs the admin.
+ *   - If "to" is omitted: emails the admin directly (used right after a
+ *     print action, so the admin still gets a record of the bill).
+ * Responds with { success, message } either way.
  */
 exports.emailInvoice = async (req, res) => {
   try {
-    const { to, invoiceName, items, total } = req.body || {};
+    const { to, invoiceName, items, total, source } = req.body || {};
 
-    if (!to || typeof to !== "string" || !to.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Recipient email (to) is required.",
-      });
-    }
+    const customerEmailProvided = !!(to && typeof to === "string" && to.trim());
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
@@ -62,20 +74,33 @@ exports.emailInvoice = async (req, res) => {
     });
 
     const trimmedName = invoiceName ? String(invoiceName).trim() : "";
-    const subject = `Invoice${trimmedName ? " for " + trimmedName : ""} - Rs. ${numericTotal.toFixed(2)}`;
+    const channelLabel =
+      SOURCE_LABELS[source] || (customerEmailProvided ? SOURCE_LABELS.email : "🧾 Invoice");
 
-    const htmlContent = `
-      <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111827;">
-        <p>Hello${trimmedName ? " " + trimmedName : ""},</p>
-        <p>Please find your invoice attached. Grand Total: <b>Rs. ${numericTotal.toFixed(2)}</b>.</p>
-        <p style="color:#9ca3af;font-size:12px;">Thank you for your business.</p>
-      </div>
-    `;
+    const primaryRecipient = customerEmailProvided ? to.trim() : ADMIN_EMAIL;
+    const subject = `${channelLabel}${trimmedName ? " - " + trimmedName : ""} - Rs. ${numericTotal.toFixed(2)}`;
+
+    const htmlContent = customerEmailProvided
+      ? `
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111827;">
+          <p>Hello${trimmedName ? " " + trimmedName : ""},</p>
+          <p>Please find your invoice attached. Grand Total: <b>Rs. ${numericTotal.toFixed(2)}</b>.</p>
+          <p style="color:#9ca3af;font-size:12px;">Thank you for your business.</p>
+        </div>
+      `
+      : `
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111827;">
+          <p>${channelLabel}${trimmedName ? " for " + trimmedName : ""}.</p>
+          <p>Grand Total: <b>Rs. ${numericTotal.toFixed(2)}</b> (${items.length} item${items.length === 1 ? "" : "s"}).</p>
+          <p style="color:#9ca3af;font-size:12px;">Automatic admin notification - a copy of the invoice PDF is attached.</p>
+        </div>
+      `;
 
     const fileName = `invoice_${Date.now()}.pdf`;
 
     const result = await sendInvoiceEmail({
-      to,
+      to: primaryRecipient,
+      bcc: customerEmailProvided ? ADMIN_EMAIL : undefined,
       subject,
       htmlContent,
       pdfBuffer,
@@ -91,7 +116,9 @@ exports.emailInvoice = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Invoice emailed successfully.",
+      message: customerEmailProvided
+        ? "Invoice emailed successfully."
+        : "Admin notified successfully.",
       messageId: result.messageId,
     });
   } catch (error) {
