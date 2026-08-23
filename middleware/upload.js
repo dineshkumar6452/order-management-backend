@@ -1,34 +1,26 @@
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 
-// Ensure "uploads" directory exists
-const uploadDir = path.join(__dirname, "../uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Multer Storage Configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
-  },
-});
+// Images are now compressed + converted to WebP and uploaded straight to
+// Cloudflare R2, so we keep them in memory (as a Buffer) rather than
+// writing to local disk first.
+const storage = multer.memoryStorage();
 
 // File type validation
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
+  const allowedTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Only JPEG, PNG, and JPG files are allowed!"), false);
+    cb(new Error("Only JPEG, PNG, and WEBP files are allowed!"), false);
   }
 };
 
-// Upload middleware
-const upload = multer({ storage, fileFilter });
+// Upload middleware. 15MB ceiling on the *original* file before compression
+// (the compressed WebP that actually gets stored will be far smaller).
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 15 * 1024 * 1024 },
+});
 
 module.exports = upload;

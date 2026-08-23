@@ -2,13 +2,25 @@ const Product = require("../models/Product");
 const Price = require("../models/Price");
 const fs = require("fs");
 const path = require("path");
+const { uploadProductImageToR2 } = require("../utils/r2Storage");
 
 // ✅ Create Product with Prices
 exports.createProduct = async (req, res) => {
   const t = await Product.sequelize.transaction();
 
   try {
-    const imageUrl = req.file ? `${process.env.LOCALHOST}/uploads/${req.file.filename}` : null;
+    // Supports two flows:
+    //  1. A file is attached directly to this request (multipart) - compress
+    //     it to WebP and upload to R2 right here.
+    //  2. The image was already uploaded separately via POST /api/upload,
+    //     and this request is a plain JSON body carrying that imageUrl.
+    const imageUrl = req.file
+      ? await uploadProductImageToR2({
+          buffer: req.file.buffer,
+          productName: req.body.name,
+          productCode: req.body.barcode,
+        })
+      : (req.body.imageUrl || null);
 
     const product = await Product.create({
       name: req.body.name,
@@ -129,8 +141,16 @@ exports.updateProduct = async (req, res) => {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    // Determine image URL (new upload or existing)
-    const imageUrl = req.file ? `${process.env.LOCALHOST}/uploads/${req.file.filename}` : product.imageUrl;
+    // Determine image URL: new direct file upload (compressed + uploaded to
+    // R2) > imageUrl from a prior separate upload call (JSON body) >
+    // existing image (unchanged).
+    const imageUrl = req.file
+      ? await uploadProductImageToR2({
+          buffer: req.file.buffer,
+          productName: req.body.name || product.name,
+          productCode: req.body.barcode || product.barcode,
+        })
+      : (req.body.imageUrl || product.imageUrl);
 
     // Update main product fields
     await product.update({
