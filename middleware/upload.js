@@ -23,4 +23,24 @@ const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 },
 });
 
+// Wraps upload.single(fieldName) so a wrong file type or oversized file
+// returns a clean 400 JSON response instead of an unhandled 500 - e.g. this
+// is exactly what happens if a client sends the wrong Content-Type on the
+// image part (application/octet-stream instead of image/*), which multer's
+// fileFilter correctly rejects but Express would otherwise turn into a
+// generic, unhelpful 500 error.
+function singleImageUpload(fieldName) {
+  const middleware = upload.single(fieldName);
+  return (req, res, next) => {
+    middleware(req, res, (err) => {
+      if (err) {
+        console.error(`❌ [upload] ${err.message}`);
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      next();
+    });
+  };
+}
+
 module.exports = upload;
+module.exports.singleImageUpload = singleImageUpload;

@@ -6,8 +6,8 @@ const apicache = require('apicache');
 const cache = apicache.middleware;
 
 const router = express.Router();
-router.post("/products", upload.single("image"), productController.createProduct);
-router.put("/products/:id", upload.single("image"), productController.updateProduct);
+router.post("/products", upload.singleImageUpload("image"), productController.createProduct);
+router.put("/products/:id", upload.singleImageUpload("image"), productController.updateProduct);
 //router.post("/", productController.createProduct);
 //router.get("/products",cache('5 minutes'), productController.getAllProducts);
 router.get("/products", productController.getAllProducts);

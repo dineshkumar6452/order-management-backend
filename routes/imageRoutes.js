@@ -6,7 +6,7 @@ const { uploadProductImageToR2 } = require("../utils/r2Storage");
 // POST /api/upload  (multipart/form-data)
 // Fields: image (file, required), productName, productCode (both optional
 // but recommended - they determine the R2 object key: <name>/<code>/image.webp)
-router.post("/upload", upload.single("image"), async (req, res) => {
+router.post("/upload", upload.singleImageUpload("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "No file uploaded" });
