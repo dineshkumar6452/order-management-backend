@@ -85,7 +85,7 @@ async function compressToWebp(inputBuffer, maxBytes = MAX_BYTES) {
 /**
  * Compresses the given image buffer to WebP (<=100KB where achievable) and
  * uploads it to Cloudflare R2 at:
- *   <productName>/<productCode>/image.webp
+ *   <productCode>/image.webp
  *
  * @param {Object} opts
  * @param {Buffer} opts.buffer - Raw image bytes (jpeg/png/webp/etc.).
@@ -107,9 +107,11 @@ async function uploadProductImageToR2({ buffer, productName, productCode }) {
     throw new Error("No image data received to upload.");
   }
 
-  const nameSlug = slugify(productName, "unknown-product");
+  // Key is just <productCode>/image.webp - product name is intentionally
+  // left out of the path (kept as a param here only in case it's useful
+  // later, e.g. for logging).
   const codeSlug = slugify(productCode, `code-${Date.now()}`);
-  const key = `${nameSlug}/${codeSlug}/image.webp`;
+  const key = `${codeSlug}/image.webp`;
 
   const webpBuffer = await compressToWebp(buffer);
 
