@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const Product = require("../models/Product");
 const Price = require("../models/Price");
 const fs = require("fs");
@@ -107,6 +108,37 @@ exports.getProductById = async (req, res) => {
     if (!product) return res.status(404).json({ success: false, message: "Product not found" });
     res.json({ success: true, product });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ✅ Search products by (partial, case-insensitive) name - used for
+// "search by name" pickers, e.g. the Inventory placements lookup.
+exports.searchProductsByName = async (req, res) => {
+  try {
+    const q = (req.query.q || "").trim();
+    if (!q) {
+      return res.status(400).json({ success: false, message: "Query param 'q' is required." });
+    }
+
+    const products = await Product.findAll({
+      where: { name: { [Op.iLike]: `%${q}%` } },
+      limit: 20,
+      order: [["name", "ASC"]],
+    });
+
+    res.json({
+      success: true,
+      products: products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        barcode: p.barcode,
+        imageUrl: p.imageUrl,
+        stock: p.stock,
+      })),
+    });
+  } catch (error) {
+    console.error("❌ [productController] searchProductsByName failed:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };

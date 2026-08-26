@@ -221,6 +221,81 @@ exports.removeItem = async (req, res) => {
   }
 };
 
+// POST /api/racks/:id/items/bulk
+// { items: [{ barcode, quantity }, ...] }
+// Commits many items in one transaction (bulk scan / manual bulk entry).
+// Unknown barcodes are skipped and reported back rather than failing the
+// whole batch, so the rest of a rapid multi-scan session still saves.
+exports.addItemsBulk = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const rack = await Rack.findByPk(req.params.id, { transaction: t });
+    if (!rack) {
+      await t.rollback();
+      return res.status(404).json({ success: false, message: "Rack not found." });
+    }
+
+    const { items } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: "items must be a non-empty array." });
+    }
+
+    // Merge duplicate barcodes within the same batch (e.g. scanned twice)
+    // before hitting the DB, so each barcode is only upserted once.
+    const qtyByBarcode = new Map();
+    for (const raw of items) {
+      const barcode = (raw?.barcode || "").toString().trim();
+      if (!barcode) continue;
+      const qty = Number.isFinite(Number(raw?.quantity)) && Number(raw.quantity) > 0 ? Number(raw.quantity) : 1;
+      qtyByBarcode.set(barcode, (qtyByBarcode.get(barcode) || 0) + qty);
+    }
+
+    const added = [];
+    const notFound = [];
+
+    for (const [barcode, qty] of qtyByBarcode.entries()) {
+      const product = await Product.findOne({ where: { barcode }, transaction: t });
+      if (!product) {
+        notFound.push(barcode);
+        continue;
+      }
+
+      const [item] = await RackItem.findOrCreate({
+        where: { rackId: rack.id, productId: product.id },
+        defaults: { barcode: product.barcode, quantity: 0 },
+        transaction: t,
+      });
+      item.quantity += qty;
+      item.barcode = product.barcode;
+      await item.save({ transaction: t });
+
+      added.push({
+        productId: product.id,
+        barcode: product.barcode,
+        name: product.name,
+        quantityAdded: qty,
+        newQuantity: item.quantity,
+      });
+    }
+
+    await Rack.update({ updatedAt: new Date() }, { where: { id: rack.id }, transaction: t, silent: false });
+
+    await t.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: `Added ${added.length} item(s)${notFound.length ? `, ${notFound.length} barcode(s) not found` : ""}.`,
+      added,
+      notFound,
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error("❌ [rackController] addItemsBulk failed:", error);
+    return res.status(500).json({ success: false, message: "Failed to bulk-add items." });
+  }
+};
+
 // ---------- Moving stock between racks ----------
 
 // POST /api/racks/:id/move

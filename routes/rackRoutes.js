@@ -9,6 +9,7 @@ router.get("/racks/:id", rackController.getRackDetail);
 
 // Items within a rack
 router.post("/racks/:id/items", rackController.addOrUpdateItem);
+router.post("/racks/:id/items/bulk", rackController.addItemsBulk);
 router.put("/racks/:id/items/:productId", rackController.setItemQuantity);
 router.delete("/racks/:id/items/:productId", rackController.removeItem);
 
