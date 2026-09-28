@@ -241,11 +241,16 @@ exports.updateBarcodeEntry = async (req, res) => {
 };
 
 // GET /api/scanned-products/barcodes?q=collar
-// Flat listing of every saved barcode (with its product name folded in),
-// mainly for admin/debug use.
+// GET /api/scanned-products/barcodes?fromDate=2026-09-27&toDate=2026-09-30
+// Flat listing of every saved barcode (with its product name folded in).
+// Used both for admin/debug (no filters, capped at 100, newest first) and
+// for the "New Products" date-range report (fromDate/toDate given -> no
+// cap, oldest first, so the export reads top-to-bottom in creation order).
+// fromDate/toDate are compared against the BARCODE row's createdAt (i.e.
+// when it was added on this screen), inclusive of the whole toDate day.
 exports.listBarcodeEntries = async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, fromDate, toDate } = req.query;
     const include = [
       {
         model: ScannedProduct,
@@ -253,16 +258,38 @@ exports.listBarcodeEntries = async (req, res) => {
         ...(q && q.trim() ? { where: { name: { [Op.iLike]: `%${q.trim()}%` } } } : {}),
       },
     ];
+
+    // "Today" here means the shop's local (IST, UTC+05:30) calendar day, not
+    // the server's own timezone (Render runs UTC) - so a fixed +05:30 offset
+    // is baked into the boundary strings themselves. This is what actually
+    // matches what the user picks in the date pickers on the Flutter side.
+    const where = {};
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) {
+        const start = new Date(`${fromDate}T00:00:00.000+05:30`);
+        where.createdAt[Op.gte] = start;
+      }
+      if (toDate) {
+        const end = new Date(`${toDate}T23:59:59.999+05:30`);
+        where.createdAt[Op.lte] = end;
+      }
+    }
+
+    const isDateFiltered = Boolean(fromDate || toDate);
+
     const rows = await ScannedProductBarcode.findAll({
+      where: isDateFiltered ? where : undefined,
       include,
-      order: [["updatedAt", "DESC"]],
-      limit: 100,
+      order: [["createdAt", isDateFiltered ? "ASC" : "DESC"]],
+      limit: isDateFiltered ? undefined : 100,
     });
     res.status(200).json({
       success: true,
       barcodes: rows.map((r) => ({
         ...serializeBarcode(r),
         productName: r.product ? r.product.name : null,
+        category: r.product ? r.product.category : null,
       })),
     });
   } catch (error) {
