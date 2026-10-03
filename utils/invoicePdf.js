@@ -56,14 +56,6 @@ function padLeft(str, width) {
   str = String(str ?? "");
   return str.length >= width ? str.slice(0, width) : " ".repeat(width - str.length) + str;
 }
-function centerLine(str, width) {
-  str = String(str ?? "");
-  if (str.length >= width) return str.slice(0, width);
-  const totalPad = width - str.length;
-  const left = Math.floor(totalPad / 2);
-  const right = totalPad - left;
-  return " ".repeat(left) + str + " ".repeat(right);
-}
 
 // Word-wraps a product name into COL_ITEM-wide chunks (hard-breaks a
 // single word that's still too long on its own).
@@ -142,15 +134,20 @@ function buildInvoicePdfBuffer({
           doc.font("Courier").fontSize(FONT_SIZE).fillColor("#000000");
         }
         doc.font(bold ? "Courier-Bold" : "Courier").fontSize(size);
-        doc.text(center ? centerLine(text, LINE_COLS) : text, MARGIN, doc.y, {
-          lineBreak: false,
-        });
+        if (center) {
+          // True centering via pdfkit's own align option (measures the
+          // actual rendered width at this font/size) - the char-padding
+          // trick in centerLine() is only accurate at FONT_SIZE, so it
+          // mis-centers anything drawn at a different size (e.g. the title).
+          doc.text(text, MARGIN, doc.y, { width: CONTENT_WIDTH, align: "center" });
+        } else {
+          doc.text(text, MARGIN, doc.y, { lineBreak: false });
+        }
         doc.y += LINE_HEIGHT;
       };
 
       // ---------- Header ----------
       writeLine("ROUGH ESTIMATE", { bold: true, center: true, size: TITLE_SIZE });
-      writeLine("CASH BILL", { bold: true, center: true });
       doc.y += 2;
 
       writeLine(`DATE: ${date}   ${time}   BILL NO: ${billNo ?? "-"}`);
