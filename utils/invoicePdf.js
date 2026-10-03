@@ -61,7 +61,7 @@ function padLeft(str, width) {
 // single word that's still too long on its own).
 function wrapItemName(name) {
   const words = String(name || "").trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return ["(No name)"];
+  if (words.length === 0) return ["_".repeat(COL_ITEM)];
 
   const lines = [];
   let current = "";
@@ -177,7 +177,7 @@ function buildInvoicePdfBuffer({
         const name =
           rawItem && rawItem.name && String(rawItem.name).trim()
             ? String(rawItem.name).trim()
-            : "(No name)";
+            : "."; // empty -> wrapItemName() fills it with an underscore blank
         const qty = Number(rawItem?.quantity ?? 0);
         const rate = Number(rawItem?.price ?? 0);
         const lineTotal = Number(rawItem?.unitTotal ?? rate * (isNaN(qty) ? 0 : qty));
