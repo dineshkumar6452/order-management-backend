@@ -37,7 +37,7 @@ const SOURCE_LABELS = {
  */
 exports.emailInvoice = async (req, res) => {
   try {
-    const { to, invoiceName, items, total, source } = req.body || {};
+    const { to, invoiceName, items, total, source, billNo, userId, machineNo } = req.body || {};
 
     const customerEmailProvided = !!(to && typeof to === "string" && to.trim());
 
@@ -56,21 +56,36 @@ exports.emailInvoice = async (req, res) => {
       });
     }
 
-    const date = new Date().toLocaleString("en-IN", {
+    // Separate DATE (DD/MM/YYYY) and TIME (24hr HH:mm) - matches the shop's
+    // existing printed "CASH BILL" slip format exactly - always in IST
+    // regardless of what timezone the server itself runs in.
+    const now = new Date();
+    const date = now.toLocaleDateString("en-GB", {
       timeZone: "Asia/Kolkata",
       day: "2-digit",
-      month: "short",
+      month: "2-digit",
       year: "numeric",
+    });
+    const time = now.toLocaleTimeString("en-GB", {
+      timeZone: "Asia/Kolkata",
       hour: "2-digit",
       minute: "2-digit",
-      hour12: true,
+      hour12: false,
     });
 
+    // BILL NO / USER ID / MACHINE NO aren't tracked by the app yet, so these
+    // accept an optional override from the client and otherwise fall back
+    // to sensible defaults (userId/machineNo match the shop's single POS
+    // terminal; billNo falls back to a short time-based number).
     const pdfBuffer = await buildInvoicePdfBuffer({
       invoiceName: invoiceName || null,
       items,
       total: numericTotal,
       date,
+      time,
+      billNo: billNo ?? String(Date.now()).slice(-4),
+      userId: userId ?? "1",
+      machineNo: machineNo ?? "1",
     });
 
     const trimmedName = invoiceName ? String(invoiceName).trim() : "";
